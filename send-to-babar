@@ -1,0 +1,37 @@
+#!/bin/sh
+
+src=zhome/bjc
+dst=babar/bjc
+
+host=ditto.local
+
+first=`ssh $host zfs list -Hd1 -t snap -o name -s creation $dst | cut -d@ -f2 | tail -1`
+last=`zfs list -Hd1 -t snap -o name -s creation $src | cut -d@ -f2 | tail -1`
+
+if [ $first != $last ]; then
+    echo "Sending $src from $first to $last"
+    zfs send -I $src@$first $src@$last | ssh $host zfs recv $dst
+    if [ $? -ne 0 ]; then
+        echo "Couldn't send snapshot stream" 1>&2
+        exit 1
+    fi
+else
+    echo "Skipping snapshot replication: $host:$dst@$last already exists."
+fi
+
+echo "Verifying final snapshot is $dst@$last"
+verify=`ssh $host zfs list -Hd1 -t snap -o name $dst | grep $last`
+if [ x"$verify" == x ]; then
+    echo "Last snapshot not sent on $host:$dst" 1>&2
+    exit 2
+fi
+
+echo "Removing local snapshots up to $src@$last"
+for ds in `zfs list -Hd1 -t snap -o name -s creation $src | cut -d@ -f2`; do
+    if [ $ds == $last ]; then
+        break
+    fi
+    sudo zfs destroy $src@$ds
+done
+
+echo "Finished. Last snapshot sent: $src@$last"

@@ -1,0 +1,64 @@
+Names are wacky. This is for my personal use, so it's not exactly
+config-file-ified. Just edit the scripts. For the record, my setup is:
+
+  * macOS laptop running OpenZFSonOSX that houses a zpool for my home
+    directory on a Core Storage encrypted volume.
+
+      hostname: dialga
+      pool: zhome
+      filesystems: bjc
+
+  * FreeBSD NAS which accepts snapshots from macOS laptop for backup
+    purposes, as well as housing long-term archival stuff (music,
+    random software, movies, etc.,) on a 5 drive RAIDZ1 setup.
+
+      hostname: ditto
+      pool: babar
+      filesystems: bjc (unmounted snapshots from zhome)
+                   shared (media)
+                   various snapshots from when I was moving data
+                   around that I haven't needed to delete yet.
+
+  * External USB drive for full backup of RAIDZ1 pool from FreeBSD NAS
+    (or, at least as much of the most recent data it can get once it
+    fills up).
+
+      hostname: ditto
+      pool: backup
+      filesystems: all of the above (unmounted snapshots)
+
+Permissions on zhome:
+Local+Descendent permissions:
+	user bjc compression,create,hold,mount,mountpoint,receive,send,snapshot
+Permissions on babar/bjc:
+Local+Descendent permissions:
+	user bjc compression,create,hold,mount,mountpoint,receive,send,snapshot
+
+It's a good idea to run send-to-babar before running cull-snapshots,
+because only the most recent snapshot is kept after a run of
+send-backup, so if you accidentally delete that snapshot from the NAS,
+you're going to have a bad time. At some point this should migrate to
+bookmarks, rather than snapshots, so that's no longer possible, but I
+haven't done that yet. I probably will after I screw up following my
+own instructions and hate my life for a week.
+
+cull-snapshots tries to be Time Machine like, and keep hourly
+snapshots for 24 hours, then daily snapshots for a month, then go
+weekly forever. There's no logic for removing old weekly snapshots,
+because I've never come close to running out of space, so it can just
+be done by hand.
+
+send-backup is used approximately once per week or so, when I plug in
+an external USB drive to sync it up with the NAS, in case of
+catastrophic NAS failure. Scrubs are run approximately every month on
+both the NAS and the USB.
+
+Locations for files:
+
+On Mac:
+  * com.kublai.zfs.make-snapshot.plist -> ~/Library/LaunchAgents
+  * make-snapshot -> wherever it's referenced by launch agent .plist
+  * send-to-babar -> somewhere in $PATH
+
+On NAS:
+  * zbackup.pl, zdest.pl, cull-snapshots send-backup -> /usr/local/bin
